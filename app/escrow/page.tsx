@@ -1,3 +1,5 @@
+import TransactionDashboardList from "@/components/Transactions/Transactions";
+
 const EscrowPage = () => {
     return (
         <div className="flex flex-col container items-center min-h-screen">
@@ -34,6 +36,10 @@ const EscrowPage = () => {
                 <button className="flex w-full items-center justify-center px-6 py-3 bg-white text-black rounded-md">
                     New transaction
                 </button>
+            </div>
+
+            <div>
+                <TransactionDashboardList />
             </div>
         </div>
     )
