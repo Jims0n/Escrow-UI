@@ -88,14 +88,16 @@ const NewEscrowForm = () => {
             const tx = await program.methods.make(seed, new BN(amount*10**depositDecimal), new BN(expectedAmount*10**receiveDecimal))
             .accountsStrict({
                 maker: anchorWallet.publicKey,
-                maker_ata_a: selectedToken?.pubkey,
                 mint_a,
                 mint_b: new PublicKey(recieverMint),
-                associated_token_program: ASSOCIATED_TOKEN_PROGRAM_ID,
+                maker_ata_a: selectedToken?.pubkey,
                 escrow,
-                system_program: SystemProgram.programId,
+                vault,
+                associated_token_program: ASSOCIATED_TOKEN_PROGRAM_ID,
                 token_program: TOKEN_PROGRAM_ID,
-                vault
+                system_program: SystemProgram.programId,
+                
+              
             })
             
             .rpc()
