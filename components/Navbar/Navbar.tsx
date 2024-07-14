@@ -3,6 +3,16 @@
 import Link from "next/link";
 import React, { useState } from "react";
 import { FaBars, FaTimes } from "react-icons/fa";
+import { useAutoConnect } from '@/contexts/AutoConnectProvider';
+import dynamic from "next/dynamic";
+// import NavElement from '@/components/nav-element';
+// import NetworkSwitcher from '@/components/NetworkSwitcher';
+
+const WalletMultiButtonDynamic = dynamic(
+  async () =>
+      (await import('@solana/wallet-adapter-react-ui')).WalletMultiButton,
+  { ssr: false },
+);
 
 const Navbar = () => {
     const [nav, setNav] = useState(false);
@@ -43,9 +53,7 @@ const Navbar = () => {
           </li>
         ))}
 
-        <button className="hidden md:flex px-6 py-3 bg-white text-black rounded-md">
-        Connect Wallet
-        </button>
+       <WalletMultiButtonDynamic className="btn-ghost btn-sm relative flex md:hidden text-lg " />
       </ul>
 
       <div
@@ -68,9 +76,8 @@ const Navbar = () => {
             </li>
           ))}
            <li>
-           <button className="flex px-6 py-3 bg-white text-black rounded-md">
-         Connect Wallet
-         </button>
+           <WalletMultiButtonDynamic className="btn-ghost btn-sm relative flex md:hidden text-lg " />
+
            </li>
         </ul>
       )}
