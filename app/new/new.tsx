@@ -1,21 +1,107 @@
 "use client";
+import { 
+    TOKEN_2022_PROGRAM_ID,
+    TOKEN_PROGRAM_ID,
+    getAccount,
+    getAssociatedTokenAddressSync,
+    // TOKEN_PROGRAM_ID,
+    ASSOCIATED_TOKEN_PROGRAM_ID
+} from "@solana/spl-token"
+import { useAnchorWallet, useConnection, useWallet } from "@solana/wallet-adapter-react"
+import { AccountInfo, PublicKey, SystemProgram } from "@solana/web3.js"
+import { FC, useEffect, useState } from "react"
+import idl from "../../idl/anchor_escrow.json"
+import { AnchorEscrow } from "../../idl/anchor_escrow"
+import { AnchorProvider, BN, Program } from "@coral-xyz/anchor"
+import { randomBytes } from "crypto";
+import { TailSpin } from "react-loader-spinner";
+//import "react-loader-spinner/dist/loader/css/react-spinner-loader.css";
 
-import { useState } from "react";
 
-const NewEscrowForm = () => {
+const seed = new BN(randomBytes(8))
 
-    const [coinList, setCoinList] = useState([]);
-    const [selectedToken, setSelectedToken] = useState("");
+const idl_string = JSON.stringify(idl)
+const idl_object = JSON.parse(idl_string)
+interface ComponentProps {
+    tokensList: {
+        account: AccountInfo<Buffer>;
+        pubkey: PublicKey;
+    }[] | undefined
+}
+
+
+
+const NewEscrowForm: FC<ComponentProps> = ({tokensList}) => {
+
+    const { connection } = useConnection()
+    const { publicKey } = useWallet()
+    const anchorWallet = useAnchorWallet()
+    const [coinList, setCoinList] = useState<{
+        account: AccountInfo<Buffer>;
+        pubkey: PublicKey;
+    }[]>()
+    const [selectedToken, setSelectedToken] = useState<{
+        pubkey: PublicKey,
+        balance: Number
+    }>()
     const [amount, setAmount] = useState(0);
-    const [receiverAddress, setReceiverAddress] = useState("");
+    const [recieverMint, setRecieverMint] = useState("")
     const [expectedAmount, setExpectedAmount] = useState(0);
     const [description, setDescription] = useState("");
     const [loading, setLoading] = useState(false);
+    useEffect(()=> {
+        setLoading(false)
+        setCoinList(tokensList)
+        setLoading(false)
+        console.log(tokensList);
+        
+    }, [tokensList])
 
     console.log(selectedToken)
-    const isDisabled = coinList.length < 1 || amount < 1 || receiverAddress.length < 1 || expectedAmount < 1 || description.length < 1 || loading ;
+    //const isDisabled = coinList.length < 1 || amount < 1 || recieverMint.length < 1 || expectedAmount < 1 || description.length < 1 || loading ;
     
-
+    const createEscrow = async () => {
+        if(!anchorWallet || !selectedToken) {return alert("Wallet not connected");}
+        try {
+            setLoading(true)
+            const provider = new AnchorProvider(connection, anchorWallet)
+            const program = new Program<AnchorEscrow>(idl_object, provider)
+            
+            const mint_a = (await getAccount(connection, selectedToken?.pubkey)).mint
+            
+            const [escrow, _bump] = PublicKey.findProgramAddressSync(
+                [Buffer.from("escrow"), anchorWallet.publicKey.toBuffer(), seed.toArrayLike(Buffer, "le", 8)],
+                program.programId
+            )
+            const vault = getAssociatedTokenAddressSync(mint_a, escrow, true, TOKEN_PROGRAM_ID)
+            
+            let depositDecimal =  (await connection.getTokenAccountBalance(selectedToken.pubkey)).value.decimals
+            let receiveDecimal =  (await connection.getTokenSupply(new PublicKey(recieverMint))).value.decimals
+            console.log(selectedToken.pubkey.toString())
+            const tx = await program.methods.make(seed, new BN(expectedAmount*10**depositDecimal), new BN(amount*10**receiveDecimal))
+            .accountsStrict({
+                maker: anchorWallet.publicKey,
+                maker_ata_a: selectedToken?.pubkey,
+                mint_a,
+                mint_b: new PublicKey(recieverMint),
+                associated_token_program: ASSOCIATED_TOKEN_PROGRAM_ID,
+                escrow,
+                system_program: SystemProgram.programId,
+                token_program: TOKEN_PROGRAM_ID,
+                vault
+            })
+            
+            .rpc()
+            console.log(tx)
+            alert("Tx Successful. Check console for Txid")
+            setLoading(false)
+        } catch(e) {
+            alert("Something went wrong. Check console for error")
+            console.log(e)
+            console.log(selectedToken.pubkey.toString())
+            setLoading(false)
+        }
+    }
         return (
                 <div>
                         <section className="bg-white py-8 antialiased dark:bg-gray-900 md:py-16">
@@ -23,27 +109,45 @@ const NewEscrowForm = () => {
         <div className="mx-auto max-w-5xl">
 
             <div className="mt-6 sm:mt-8 lg:flex lg:items-start lg:gap-12">
+           
                 <form action="#" className="w-full rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6 lg:max-w-xl lg:p-8">
                     <div className="mb-6 grid grid-cols-2 gap-4">
+                    {coinList  ?
                         <div className="col-span-2">
-                            <label htmlFor="coin-list" className="mb-2 block text-sm font-medium text-gray-900 dark:text-white"> Token list </label>
-                            <select value={selectedToken} onChange={e => setSelectedToken(e.target.value)} id="coin-list" className="block w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm text-gray-900 focus:border-primary-500 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400 dark:focus:border-primary-500 dark:focus:ring-primary-500" required>
+                           
+                            <div>
+                            <select name="Select token" defaultValue="--Select Token--" onChange={e => {
+                                    (async() => {
+                                        if(Number(e.target.value) === 0) {return}
+                                        let balance = await connection.getTokenAccountBalance(new PublicKey(e.target.value))
+                                        setSelectedToken({pubkey: new PublicKey(e.target.value), balance: Number(balance.value.amount)/10**balance.value.decimals})                                    
+                                    })()
+                                }}>
                                 <option>--- Select Token ---</option>
-                                <option value="BTC">BTC</option>
-                                <option value="ETH">ETH</option>
-                                <option value="SOL">SOL</option>
+                                {coinList.length && coinList.map((token, i) => (
+                                        <option className="Token-item" key={i} value={token.pubkey.toString()}>
+                                            {token.pubkey.toString().slice(0,5)}...{token.pubkey.toString().slice(token.pubkey.toString().length - 5)}
+                                        </option>
+                                    ))}
                             </select>
+                            <span>Balance: {selectedToken?.balance.toString()}</span>
+                            </div>
+                           
+                            
 
-                            {selectedToken && selectedToken !== '--- Select Token ---' && 
-                                <>
-                                    <span className="font-light text-gray-200 text-sm">Balance:</span>
-                                    <span className="text-green-800 font-bold"> 40</span>
-                                </>
-                            }
+                            
                         </div>
+                          : 
+                          <TailSpin 
+                          height="100"
+                          width="100"
+                          color="#00BFFF"
+                         // ariaLabel="loading"
+                          />
+}
 
                         {
-                            selectedToken && selectedToken !== '--- Select Token ---' && 
+                            selectedToken && 
                             <>
                             <div className="col-span-2">
                                 <label htmlFor="amount" className="mb-2 block text-sm font-medium text-gray-900 dark:text-white"> Amount* </label>
@@ -52,7 +156,7 @@ const NewEscrowForm = () => {
 
                         <div className="col-span-2">
                             <label htmlFor="receiver-address" className="mb-2 block text-sm font-medium text-gray-900 dark:text-white"> Receiver Address* </label>
-                            <input value={receiverAddress} onChange={e => setReceiverAddress(e.target.value)} type="text" id="receiver-address" className="block w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 pe-10 text-sm text-gray-900 focus:border-primary-500 focus:ring-primary-500  dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400 dark:focus:border-primary-500 dark:focus:ring-primary-500" placeholder="xxxxxxx" required />
+                            <input value={recieverMint} onChange={e => setRecieverMint(e.target.value)} type="text" id="receiver-address" className="block w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 pe-10 text-sm text-gray-900 focus:border-primary-500 focus:ring-primary-500  dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400 dark:focus:border-primary-500 dark:focus:ring-primary-500" placeholder="xxxxxxx" required />
                         </div>
 
                         <div className="col-span-2">
@@ -68,14 +172,14 @@ const NewEscrowForm = () => {
                         }
                     </div>
 
-                    <button type="submit" disabled={isDisabled} 
+                    <button type="submit" onClick={createEscrow} 
                         className="border flex w-full items-center justify-center rounded-lg bg-primary-700 px-5 py-2.5 text-sm font-medium text-white hover:bg-primary-800 focus:outline-none focus:ring-4  focus:ring-primary-300 dark:bg-primary-600 dark:hover:bg-primary-700 dark:focus:ring-primary-800">
                             Create Escrow
                     </button>
                 </form>
 
             </div>
-
+            
             <p className="mt-6 text-center text-gray-500 dark:text-gray-400 sm:mt-8 px-4 lg:text-left">
                 Financial transactions powered and processed by - Solana
             </p>
