@@ -21,17 +21,13 @@ import { TailSpin } from "react-loader-spinner";
 const seed = new BN(randomBytes(8))
 
 const idl_string = JSON.stringify(idl)
+const PROGRAM_ID = "6b3d7CopwSjZFfrErvj7xSJm8V9TFzQyJ5bfUwxWj3W"
 const idl_object = JSON.parse(idl_string)
-interface ComponentProps {
-    tokensList: {
-        account: AccountInfo<Buffer>;
-        pubkey: PublicKey;
-    }[] | undefined
-}
 
 
 
-const NewEscrowForm: FC<ComponentProps> = ({tokensList}) => {
+
+const NewEscrowForm = () => {
 
     const { connection } = useConnection()
     const { publicKey } = useWallet()
@@ -49,13 +45,24 @@ const NewEscrowForm: FC<ComponentProps> = ({tokensList}) => {
     const [expectedAmount, setExpectedAmount] = useState(0);
     const [description, setDescription] = useState("");
     const [loading, setLoading] = useState(false);
+
+    const fetchAllTokens = async () => {
+        if(publicKey) {
+            const tokenAccounts = await connection.getTokenAccountsByOwner(publicKey, {
+                programId: TOKEN_PROGRAM_ID
+            })
+            let tokenDetails = tokenAccounts.value.map(account => account)
+            setCoinList(tokenDetails)
+        }
+    }
     useEffect(()=> {
+        setLoading(true)
+         fetchAllTokens()
+       
         setLoading(false)
-        setCoinList(tokensList)
-        setLoading(false)
-        console.log(tokensList);
+        console.log();
         
-    }, [tokensList])
+    }, [])
 
     console.log(selectedToken)
     //const isDisabled = coinList.length < 1 || amount < 1 || recieverMint.length < 1 || expectedAmount < 1 || description.length < 1 || loading ;
@@ -63,7 +70,7 @@ const NewEscrowForm: FC<ComponentProps> = ({tokensList}) => {
     const createEscrow = async () => {
         if(!anchorWallet || !selectedToken) {return alert("Wallet not connected");}
         try {
-            setLoading(true)
+            setLoading(false)
             const provider = new AnchorProvider(connection, anchorWallet)
             const program = new Program<AnchorEscrow>(idl_object, provider)
             
@@ -78,7 +85,7 @@ const NewEscrowForm: FC<ComponentProps> = ({tokensList}) => {
             let depositDecimal =  (await connection.getTokenAccountBalance(selectedToken.pubkey)).value.decimals
             let receiveDecimal =  (await connection.getTokenSupply(new PublicKey(recieverMint))).value.decimals
             console.log(selectedToken.pubkey.toString())
-            const tx = await program.methods.make(seed, new BN(expectedAmount*10**depositDecimal), new BN(amount*10**receiveDecimal))
+            const tx = await program.methods.make(seed, new BN(amount*10**depositDecimal), new BN(expectedAmount*10**receiveDecimal))
             .accountsStrict({
                 maker: anchorWallet.publicKey,
                 maker_ata_a: selectedToken?.pubkey,
@@ -112,10 +119,14 @@ const NewEscrowForm: FC<ComponentProps> = ({tokensList}) => {
            
                 <form action="#" className="w-full rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6 lg:max-w-xl lg:p-8">
                     <div className="mb-6 grid grid-cols-2 gap-4">
-                    {coinList  ?
+                    {
+                    
+                    coinList  ?
+                    
                         <div className="col-span-2">
                            
                             <div>
+                                
                             <select name="Select token" defaultValue="--Select Token--" onChange={e => {
                                     (async() => {
                                         if(Number(e.target.value) === 0) {return}
@@ -164,10 +175,7 @@ const NewEscrowForm: FC<ComponentProps> = ({tokensList}) => {
                             <input value={expectedAmount} onChange={e => setExpectedAmount(Number(e.target.value))} type="number" id="expected-amount" className="block w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 pe-10 text-sm text-gray-900 focus:border-primary-500 focus:ring-primary-500  dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400 dark:focus:border-primary-500 dark:focus:ring-primary-500" placeholder="xxxxxxx" required />
                         </div>
 
-                        <div className="col-span-2">
-                            <label htmlFor="description" className="mb-2 block text-sm font-medium text-gray-900 dark:text-white"> Description* </label>
-                            <textarea value={description} onChange={e => setDescription(e.target.value)} id="description" className="block w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 pe-10 text-sm text-gray-900 focus:border-primary-500 focus:ring-primary-500  dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder:text-gray-400 dark:focus:border-primary-500 dark:focus:ring-primary-500" placeholder="xxxxxxx" required />
-                        </div>
+                        
                         </>
                         }
                     </div>
