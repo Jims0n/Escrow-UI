@@ -1,3 +1,4 @@
+"use client";
 import { FaRegStickyNote } from "react-icons/fa";
 
 const TransactionDashboardList = () => {
