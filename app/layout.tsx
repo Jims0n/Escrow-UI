@@ -5,8 +5,6 @@ import Navbar from "@/components/Navbar/Navbar";
 import { ContextProvider } from "@/contexts/ContextProvider";
 import App from "./_app";
 
-
-
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
@@ -21,11 +19,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      
       <body className={inter.className}>
-     <App>{children}</App>
+        <App>{children}</App>
       </body>
-      
     </html>
   );
 }
