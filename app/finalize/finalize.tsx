@@ -1,45 +1,69 @@
 import Link from "next/link";
+import { AnchorProvider, Program, BN } from "@coral-xyz/anchor";
+import { useAnchorWallet, useConnection, useWallet } from "@solana/wallet-adapter-react";
+import idl from "../../idl/anchor_escrow.json"
+import { AnchorEscrow } from "../../idl/anchor_escrow";
+import { PublicKey, SystemProgram } from "@solana/web3.js";
+import { FC, useEffect, useState } from "react";
+
+
+import { getAssociatedTokenAddressSync, getAccount, TOKEN_PROGRAM_ID, getMint, ASSOCIATED_TOKEN_PROGRAM_ID} from "@solana/spl-token";
+
+let idl_string = JSON.stringify(idl)
+let idl_object = JSON.parse(idl_string)
+
+type EscrowAccount = {
+    escrow: PublicKey;
+    mintA: PublicKey;
+    mintB: PublicKey;
+    seed: BN;
+    recieve: BN;
+    makerAmount: BN;
+    maker: PublicKey
+}
 
 const FinalizeContract = () => {
-    const txn = [
-        {
-            offeredToken: "40",
-            offeredAmount: "100",
-            requestedToken: "20",
-            requestedAmount: "50",
-            escrowLink: "http://localhost:3000/escrow/1",
-            id: "1"
-        },
 
-        {
-            offeredToken: "40",
-            offeredAmount: "100",
-            requestedToken: "20",
-            requestedAmount: "50",
-            escrowLink: "http://localhost:3000/escrow/1",
-            id: "2"
+    const { connection } = useConnection()
+    const { publicKey } = useWallet()
+    const anchorWallet = useAnchorWallet()
+
+    const [takeDetails, setTakeDetails] = useState<(EscrowAccount | undefined)[]>()
+
+
+    const getCurrentEscrowAccountsForDeal = async() => {
+        if(!anchorWallet) {return;}
+        const provider = new AnchorProvider(connection, anchorWallet)
+        const program = new Program<AnchorEscrow>(idl_object, provider)
+        // setProgram(program)
+        const data = await program.account.escrow.all();
+        let escrowAccounts: EscrowAccount[] = []
+        for(let i=0;i<data.length;i++) {
+            const y = getAssociatedTokenAddressSync(data[i].account.mintA, data[i].publicKey, true, TOKEN_PROGRAM_ID)
+            const account = await connection.getTokenAccountBalance(y)
+            const balance = Number(account.value.amount)/10**account.value.decimals
+            const mintInfoB = await getMint(connection, data[i].account.mintB)
+            const recieveAmt = data[i].account.receive/10**mintInfoB.decimals
+            escrowAccounts.push({
+                escrow: data[i].publicKey,
+                mintA: data[i].account.mintA,
+                mintB: data[i].account.mintB,
+                seed: data[i].account.seed,
+                recieve: recieveAmt,
+                makerAmount: balance,
+                maker: data[i].account.maker,
+            })
         }
-    ]
+        setTakeDetails(escrowAccounts)
+    }
+   
+
+    
 
     return (
         <div className="w-full max-w-5xl">
             {txn.map(tx => (
-                <div className="block w-full p-6 bg-white border my-4 border-gray-200 rounded-lg shadow hover:bg-gray-100 dark:bg-gray-800 dark:border-gray-700 dark:hover:bg-gray-700">
-                    <div>
-                        <span className="mb-2 text-2xl font-light tracking-tight text-gray-900 dark:text-white">Escrow: </span>
-                        <Link href="" className="mb-2 text-2xl font-bold tracking-tight text-blue-400 underline">xuew</Link>
-                    </div>
-                    <div>
-                        <p className="font-normal text-gray-700 dark:text-gray-400">Offered token: { tx.offeredToken } </p>
-                        <p className="font-normal text-gray-700 dark:text-gray-400">Offered amount: { tx.offeredAmount } </p>
-                        <p className="font-normal text-gray-700 dark:text-gray-400">Requested token: { tx.requestedToken } </p>
-                        <p className="font-normal text-gray-700 dark:text-gray-400">Requested amount: { tx.requestedAmount } </p>
-                    </div>
-                    <div className="flex gap-10 mt-4">
-                        <button className="w-full p-2 bg-primary-700 text-white rounded-lg font-bold border">Reject and Refund</button>
-                        <button className="w-full p-2 bg-primary-700 text-white rounded-lg font-bold border">Agree to terms</button>
-                    </div>
-                </div>
+                
             ))}
         </div>
     );

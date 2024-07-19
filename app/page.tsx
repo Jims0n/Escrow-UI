@@ -1,5 +1,5 @@
 
-import TransactionDashboardList from "@/components/Transactions/Transactions";
+
 import Head from "next/head";
 import Image from "next/image";
 import Link from "next/link";
@@ -15,11 +15,11 @@ export default function Home() {
     </Head>
       <div className="flex flex-col mt-36 container items-center min-h-screen">
       <div className="px-4 md:px-4 mb-10 md:mb-20 w-full justify-end flex gap-10 ">
-        <Link href="/new" className="w-fit px-10 p-4 bg-primary-700 text-white rounded-lg font-bold border">New Escrow Transactions</Link>
+        <Link href="/finalize" className="w-fit px-10 p-4 bg-green-200 border-black text-white rounded-lg font-bold border">Incoming Transactions</Link>
         {/* <button className="w-full p-4 bg-primary-700 text-white rounded-lg font-bold border">Finalize</button> */}
       </div>
 
-            <div className="flex flex-col md:flex-row justify-between px-4 md:px-0 gap-12 w-full max-w-4xl">
+            <div className="flex flex-col md:flex-row justify-between px-6 md:px-0 gap-16 w-full max-w-4xl">
 
                 <div className=" justify-center flex flex-col max-w-screen min-h-48 h-full w-full md:max-w-xl p-6 bg-white border border-gray-200 rounded-lg shadow hover:bg-gray-100 dark:bg-gray-800 dark:border-gray-700 dark:hover:bg-gray-700">
                     <h5 className="mb-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">Balance</h5>
@@ -48,9 +48,10 @@ export default function Home() {
                 </div>
             </div>
 
-            <div>
-                <TransactionDashboardList />
-            </div>
+            <div className="px-4 py-8 md:px-4 mb-10 md:mb-20 w-full justify-center flex gap-10 ">
+        <Link href="/new" className="w-fit px-10 p-4 bg-black border-black text-white rounded-lg font-bold border">New Escrow Transactions</Link>
+        
+      </div>
         </div>
 
    </>
