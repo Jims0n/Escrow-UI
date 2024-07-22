@@ -19,6 +19,7 @@ import {
   getMint,
   ASSOCIATED_TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
+import Table from "@/components/Card/Table";
 
 let idl_string = JSON.stringify(idl);
 let idl_object = JSON.parse(idl_string);
@@ -37,6 +38,10 @@ const FinalizeContract = () => {
   const { connection } = useConnection();
   const { publicKey } = useWallet();
   const anchorWallet = useAnchorWallet();
+  
+    const ourWallet = useAnchorWallet()
+    const [escrowAccounts, setEscrowAccounts] = useState<(EscrowAccount | undefined)[]>()
+    const [loading, setLoading] = useState(true)
 
   const [takeDetails, setTakeDetails] =
     useState<(EscrowAccount | undefined)[]>();
@@ -75,11 +80,72 @@ const FinalizeContract = () => {
     setTakeDetails(escrowAccounts);
   };
 
+  useEffect(() => {
+    setLoading(true)
+    const data: (EscrowAccount | undefined)[] | undefined =  takeDetails
+    if(data?.length) {
+        setEscrowAccounts(data)
+        console.log(escrowAccounts)
+    } 
+    console.log(data)
+    setLoading(false)
+},[takeDetails])
+
+const truncate = (str: String | undefined) => str ? (str.slice(0,4)+"..."+str.slice(-4)) : null
+
   return (
     <div className="w-full max-w-5xl">
-      {/* {txn.map(tx => (
-                
-            ))} */}
+      {
+                        escrowAccounts && 
+                        escrowAccounts.map((escrowAccount, i) => (
+                            <Table 
+                            key={i}
+                            escrow={`https://explorer.solana.com/address/${escrowAccount?.escrow.toString()}?cluster=devnet`} 
+                            mintA={truncate(escrowAccount?.mintA.toString())} 
+                            mintB={truncate(escrowAccount?.mintB.toString())} 
+                            mintAUrl={escrowAccount?.mintA.toString()}
+                            mintBUrl={escrowAccount?.mintB.toString()}
+                            maker={truncate(escrowAccount?.escrow.toString())}
+                            makerAmount={(escrowAccount?.makerAmount.toString())}
+                            takerAmount={(escrowAccount?.recieve.toString())}
+                            deal={async () => {
+                                if(!ourWallet) {return alert("Wallet not connected");}
+                                const provider = new AnchorProvider(connection, ourWallet)
+                                const program = new Program<AnchorEscrow>(idl_object, provider)
+                                if(!escrowAccount){return}
+                                const makerAtaB = getAssociatedTokenAddressSync(escrowAccount?.mintB, escrowAccount?.maker,false, TOKEN_PROGRAM_ID)
+                                const takerAtaA = getAssociatedTokenAddressSync(escrowAccount.mintA, ourWallet.publicKey, false, TOKEN_PROGRAM_ID)
+                                const takerAtaB = getAssociatedTokenAddressSync(escrowAccount.mintB, ourWallet.publicKey, false, TOKEN_PROGRAM_ID)
+                                const vault = getAssociatedTokenAddressSync(escrowAccount.mintA, escrowAccount.escrow, true, TOKEN_PROGRAM_ID)
+                                console.log(takerAtaB.toString())
+                                try {
+
+                                    const tx = await program.methods.take()
+                                    .accountsStrict({
+                                        makerAtaB,
+                                        takerAtaA,
+                                        takerAtaB,
+                                        vault,
+                                        tokenProgram: TOKEN_PROGRAM_ID,
+                                        taker: ourWallet.publicKey,
+                                        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+                                        escrow: escrowAccount.escrow,
+                                        maker: escrowAccount.maker,
+                                        mintA: escrowAccount.mintA,
+                                        mintB: escrowAccount.mintB,
+                                        systemProgram: SystemProgram.programId
+                                    })
+                                    .rpc()
+                                    console.log(tx)
+                                    alert("Tx Successful. Check console for Txid")
+                                } catch(e) {
+                                    alert("Something went wrong. Check console for error")
+                                    console.log(e)
+                                }
+                            }}
+                            />
+                        ))
+                    }
     </div>
   );
 };
