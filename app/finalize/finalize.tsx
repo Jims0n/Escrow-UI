@@ -1,6 +1,4 @@
 "use client";
-
-import Link from "next/link";
 import { AnchorProvider, Program, BN } from "@coral-xyz/anchor";
 import {
   useAnchorWallet,
@@ -12,6 +10,7 @@ import { AnchorEscrow } from "../../idl/anchor_escrow";
 import { PublicKey, SystemProgram } from "@solana/web3.js";
 import { FC, useEffect, useState } from "react";
 
+
 import {
   getAssociatedTokenAddressSync,
   getAccount,
@@ -19,7 +18,7 @@ import {
   getMint,
   ASSOCIATED_TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
-import Table from "@/components/Card/Table";
+
 
 let idl_string = JSON.stringify(idl);
 let idl_object = JSON.parse(idl_string);
@@ -82,8 +81,10 @@ const FinalizeContract = () => {
 
   useEffect(() => {
     setLoading(true)
+    getCurrentEscrowAccountsForDeal();
     const data: (EscrowAccount | undefined)[] | undefined =  takeDetails
     if(data?.length) {
+        
         setEscrowAccounts(data)
         console.log(escrowAccounts)
     } 
@@ -93,59 +94,91 @@ const FinalizeContract = () => {
 
 const truncate = (str: String | undefined) => str ? (str.slice(0,4)+"..."+str.slice(-4)) : null
 
-  return (
-    <div className="w-full max-w-5xl">
-      {
-                        escrowAccounts && 
-                        escrowAccounts.map((escrowAccount, i) => (
-                            <Table 
-                            key={i}
-                            escrow={`https://explorer.solana.com/address/${escrowAccount?.escrow.toString()}?cluster=devnet`} 
-                            mintA={truncate(escrowAccount?.mintA.toString())} 
-                            mintB={truncate(escrowAccount?.mintB.toString())} 
-                            mintAUrl={escrowAccount?.mintA.toString()}
-                            mintBUrl={escrowAccount?.mintB.toString()}
-                            maker={truncate(escrowAccount?.escrow.toString())}
-                            makerAmount={(escrowAccount?.makerAmount.toString())}
-                            takerAmount={(escrowAccount?.recieve.toString())}
-                            deal={async () => {
-                                if(!ourWallet) {return alert("Wallet not connected");}
-                                const provider = new AnchorProvider(connection, ourWallet)
-                                const program = new Program<AnchorEscrow>(idl_object, provider)
-                                if(!escrowAccount){return}
-                                const makerAtaB = getAssociatedTokenAddressSync(escrowAccount?.mintB, escrowAccount?.maker,false, TOKEN_PROGRAM_ID)
-                                const takerAtaA = getAssociatedTokenAddressSync(escrowAccount.mintA, ourWallet.publicKey, false, TOKEN_PROGRAM_ID)
-                                const takerAtaB = getAssociatedTokenAddressSync(escrowAccount.mintB, ourWallet.publicKey, false, TOKEN_PROGRAM_ID)
-                                const vault = getAssociatedTokenAddressSync(escrowAccount.mintA, escrowAccount.escrow, true, TOKEN_PROGRAM_ID)
-                                console.log(takerAtaB.toString())
-                                try {
 
-                                    const tx = await program.methods.take()
-                                    .accountsStrict({
-                                        makerAtaB,
-                                        takerAtaA,
-                                        takerAtaB,
-                                        vault,
-                                        tokenProgram: TOKEN_PROGRAM_ID,
-                                        taker: ourWallet.publicKey,
-                                        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-                                        escrow: escrowAccount.escrow,
-                                        maker: escrowAccount.maker,
-                                        mintA: escrowAccount.mintA,
-                                        mintB: escrowAccount.mintB,
-                                        systemProgram: SystemProgram.programId
-                                    })
-                                    .rpc()
-                                    console.log(tx)
-                                    alert("Tx Successful. Check console for Txid")
-                                } catch(e) {
-                                    alert("Something went wrong. Check console for error")
-                                    console.log(e)
-                                }
-                            }}
-                            />
-                        ))
-                    }
+  return (
+    <div className=' container mx-auto p-4'>
+      <div className="overflow-x-auto">
+        <table className="min-w-full bg-white">
+          <thead>
+            <tr>
+              <th className="py-2 px-4 bg-gray-200 text-gray-600 text-left text-sm uppercase font-medium">
+                Escrow
+              </th>
+              <th className="py-2 px-4 bg-gray-200 text-gray-600 text-left text-sm uppercase font-medium">
+                Offered Token
+              </th>
+              <th className="py-2 px-4 bg-gray-200 text-gray-600 text-left text-sm uppercase font-medium">
+                Offered Amount
+              </th>
+              <th className="py-2 px-4 bg-gray-200 text-gray-600 text-left text-sm uppercase font-medium">
+                Requested Token
+              </th>
+              <th className="py-2 px-4 bg-gray-200 text-gray-600 text-left text-sm uppercase font-medium">
+                Requested Amount
+              </th>
+              <th className="py-2 px-4 bg-gray-200 text-gray-600 text-left text-sm uppercase font-medium">
+                
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+    
+             {escrowAccounts && escrowAccounts.map((escrowAccount, i) => (
+                    <tr  className="border-t" key={i}>
+                        
+                    <td className="py-2 px-4 text-gray-700"><a href={`https://explorer.solana.com/address/${escrowAccount?.escrow.toString()}?cluster=devnet`} ></a>{truncate(escrowAccount?.escrow.toString())}</td>
+                    <td className="py-2 px-4 text-gray-700"><a href={`https://explorer.solana.com/address/${escrowAccount?.mintA.toString()}?cluster=devnet`}>{truncate(escrowAccount?.mintA.toString())}</a></td>
+                    
+                    <td className="py-2 px-4 text-gray-700">{(escrowAccount?.makerAmount.toString())}</td>
+                    <td className="py-2 px-4 text-gray-700"><a href={`https://explorer.solana.com/address/${escrowAccount?.mintB.toString()}?cluster=devnet`}>{truncate(escrowAccount?.mintB.toString())} </a></td>
+                    <td className="py-2 px-4">
+                    {(escrowAccount?.recieve.toString())}
+                    </td>
+                    <td className="py-2 px-4">
+                    <button onClick={ async () => {
+    if(!ourWallet) {return alert("Wallet not connected");}
+    const provider = new AnchorProvider(connection, ourWallet)
+    const program = new Program<AnchorEscrow>(idl_object, provider)
+    if(!escrowAccount){return}
+    const makerAtaB = getAssociatedTokenAddressSync(escrowAccount?.mintB, escrowAccount?.maker,false, TOKEN_PROGRAM_ID)
+    const takerAtaA = getAssociatedTokenAddressSync(escrowAccount.mintA, ourWallet.publicKey, false, TOKEN_PROGRAM_ID)
+    const takerAtaB = getAssociatedTokenAddressSync(escrowAccount.mintB, ourWallet.publicKey, false, TOKEN_PROGRAM_ID)
+    const vault = getAssociatedTokenAddressSync(escrowAccount.mintA, escrowAccount.escrow, true, TOKEN_PROGRAM_ID)
+    console.log(takerAtaB.toString())
+    try {
+
+        const tx = await program.methods.take()
+        .accountsStrict({
+            makerAtaB,
+            takerAtaA,
+            takerAtaB,
+            vault,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            taker: ourWallet.publicKey,
+            associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+            escrow: escrowAccount.escrow,
+            maker: escrowAccount.maker,
+            mintA: escrowAccount.mintA,
+            mintB: escrowAccount.mintB,
+            systemProgram: SystemProgram.programId
+        })
+        .rpc()
+        console.log(tx)
+        alert("Tx Successful. Check console for Txid")
+    } catch(e) {
+        alert("Something went wrong. Check console for error")
+        console.log(e)
+    }
+}
+}> Deal</button>
+                    </td>
+                  </tr>
+              
+             ))} 
+             
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 };
