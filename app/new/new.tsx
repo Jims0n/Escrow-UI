@@ -19,18 +19,17 @@ import { AnchorEscrow } from "../../idl/anchor_escrow";
 import { AnchorProvider, BN, Program } from "@coral-xyz/anchor";
 import { randomBytes } from "crypto";
 import { TailSpin } from "react-loader-spinner";
-//import "react-loader-spinner/dist/loader/css/react-spinner-loader.css";
+import { useEscrow } from "@/hooks/useEscrow";
+import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
-const seed = new BN(randomBytes(8));
 
-const idl_string = JSON.stringify(idl);
-const PROGRAM_ID = "2Xk3RLgedssCCiifAF7KYq8xt5dPW62jy5P8GZFGp3po";
-const idl_object = JSON.parse(idl_string);
 
 const NewEscrowForm = () => {
   const { connection } = useConnection();
   const { publicKey } = useWallet();
-  const anchorWallet = useAnchorWallet();
+  const { makeEscrow } = useEscrow() || {};
+  const router = useRouter();
   const [coinList, setCoinList] = useState<
     {
       account: AccountInfo<Buffer>;
@@ -64,74 +63,46 @@ const NewEscrowForm = () => {
     fetchAllTokens();
 
     setLoading(false);
+    
     console.log();
   }, []);
 
-  console.log(selectedToken);
-  //const isDisabled = coinList.length < 1 || amount < 1 || recieverMint.length < 1 || expectedAmount < 1 || description.length < 1 || loading ;
+  
 
-  const createEscrow = async () => {
-    if (!anchorWallet || !selectedToken) {
-      return alert("Wallet not connected");
-    }
-    try {
-      setLoading(false);
-      const provider = new AnchorProvider(connection, anchorWallet);
-      const program = new Program<AnchorEscrow>(idl_object, provider);
+  const onSubmit = async () => {
+    if (!publicKey) {
+        toast.error("Wallet not connected");
+        return;
+      }
+      if (!makeEscrow) {
+        toast.error("Escrow function not available");
+        return;
+      }
+      console.log(selectedToken?.pubkey.toString());
+      if (!selectedToken?.pubkey) {
+        toast.error("No token selected");
+        return;
+      }
+      const mint = (await getAccount(connection, selectedToken?.pubkey)).mint
+      await makeEscrow({
+        mintA: mint,
+        mintB: recieverMint,
+        deposit: amount,
+        receive: expectedAmount,
+      });  
+      
+      toast.success("Escrow creation successful", {
+        description: "Go to On-going to view your escrow",
+        position: "bottom-center",
+        action: {
+          label: "On-going",
+          onClick: () => router.push("/finalize"),
+        },
+      });
+  }
+  
 
-      const mintA = (await getAccount(connection, selectedToken?.pubkey)).mint;
 
-      const [escrow, _bump] = PublicKey.findProgramAddressSync(
-        [
-          Buffer.from("escrow"),
-          anchorWallet.publicKey.toBuffer(),
-          seed.toArrayLike(Buffer, "le", 8),
-        ],
-        program.programId,
-      );
-      const vault = getAssociatedTokenAddressSync(
-        mintA,
-        escrow,
-        true,
-        TOKEN_PROGRAM_ID,
-      );
-
-      let depositDecimal = (
-        await connection.getTokenAccountBalance(selectedToken.pubkey)
-      ).value.decimals;
-      let receiveDecimal = (
-        await connection.getTokenSupply(new PublicKey(recieverMint))
-      ).value.decimals;
-      console.log(selectedToken.pubkey.toString());
-      const tx = await program.methods
-        .make(
-          seed,
-          new BN(amount * 10 ** depositDecimal),
-          new BN(expectedAmount * 10 ** receiveDecimal),
-        )
-        .accountsStrict({
-          maker: anchorWallet.publicKey,
-          makerAtaA: selectedToken?.pubkey,
-          mintA,
-          mintB: new PublicKey(recieverMint),
-          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-          escrow,
-          systemProgram: SystemProgram.programId,
-          tokenProgram: TOKEN_PROGRAM_ID,
-          vault,
-        })
-
-        .rpc();
-      console.log(tx);
-      alert("Tx Successful. Check console for Txid");
-      setLoading(false);
-    } catch (e) {
-      alert("Something went wrong. Check console for error");
-      console.log(e);
-      console.log(selectedToken.pubkey.toString());
-      setLoading(false);
-    }
-  };
   return (
     <div>
       <section className="bg-white py-4 dark:bg-gray-900 rounded-md">
@@ -182,14 +153,17 @@ const NewEscrowForm = () => {
                     </div>
                   </div>
                 </div>
-              ) : (
-                <TailSpin
-                  height="100"
-                  width="100"
-                  color="#00BFFF"
-                  // ariaLabel="loading"
-                />
-              )}
+              ) :
+               (
+                // <TailSpin
+                //   height="100"
+                //   width="100"
+                //   color="#00BFFF"
+                //   // ariaLabel="loading"
+                // />
+                <div>No coin in wallet</div>
+              )
+              }
 
               {selectedToken && (
                 <div className="Token-form w-full px-10">
@@ -225,13 +199,18 @@ const NewEscrowForm = () => {
                         className="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
                     />
                   </div>
-                  <button className="Submit-form mt-4 border w-full h-12 rounded-md hover:bg-green-800 hover:border-none font-bold hover:text-black" onClick={createEscrow}>
+                  <button className="Submit-form mt-4 border w-full h-12 rounded-md hover:bg-green-800 hover:border-none font-bold hover:text-black" onClick={onSubmit}>
                     Create Escrow
                   </button>
                 </div>
               )}
             </div>
-
+            {loading && <TailSpin
+                  height="100"
+                  width="100"
+                  color="#00BFFF"
+                  // ariaLabel="loading"
+                 />}
             <p className="mt-6 text-center text-gray-500 dark:text-gray-400 sm:mt-8 px-4 lg:text-left">
               Financial transactions powered and processed by - Solana
             </p>

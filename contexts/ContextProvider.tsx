@@ -22,7 +22,7 @@ import {
   useNetworkConfiguration,
 } from "@/contexts/NetworkConfigurationProvider";
 import dynamic from "next/dynamic";
-import { RPC_ENDPOINT } from "@/utils/const";
+import { RPC_ENDPOINT } from "@/lib/const";
 
 const ReactUIWalletModalProviderDynamic = dynamic(
   async () =>

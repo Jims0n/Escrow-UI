@@ -6,181 +6,192 @@ import {
   useWallet,
 } from "@solana/wallet-adapter-react";
 import idl from "../../idl/anchor_escrow.json";
-import { AnchorEscrow } from "../../idl/anchor_escrow";
 import { PublicKey, SystemProgram } from "@solana/web3.js";
-import { FC, useEffect, useState } from "react";
-
-
-import {
-  getAssociatedTokenAddressSync,
-  getAccount,
-  TOKEN_PROGRAM_ID,
-  getMint,
-  ASSOCIATED_TOKEN_PROGRAM_ID,
-} from "@solana/spl-token";
-
+import React, { FC, useEffect, useState, } from "react";
+import { shortenWalletAddress } from "@/lib/funtions";
+import { toast } from "sonner";
+import { useEscrow } from "@/hooks/useEscrow";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle} from "@/components/ui/card"
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import DisplayTokenAmount from "@/components/DisplayTokenAmount";
 
 let idl_string = JSON.stringify(idl);
 let idl_object = JSON.parse(idl_string);
 
-type EscrowAccount = {
-  escrow: PublicKey;
-  mintA: PublicKey;
-  mintB: PublicKey;
-  seed: BN;
-  recieve: BN;
-  makerAmount: BN;
-  maker: PublicKey;
-};
+interface EscrowAccount {
+    publicKey: PublicKey;
+    account: {
+      seed: BN;
+      maker: PublicKey;
+      bump: number;
+      mintA: PublicKey;
+      mintB: PublicKey;
+      receive: BN;
+    };
+  }
 
 const FinalizeContract = () => {
   const { connection } = useConnection();
   const { publicKey } = useWallet();
   const anchorWallet = useAnchorWallet();
-  
-    const ourWallet = useAnchorWallet()
-    const [escrowAccounts, setEscrowAccounts] = useState<(EscrowAccount | undefined)[]>()
-    const [loading, setLoading] = useState(true)
+  const { refundEscrow, takerEscrow, getAllEscrowAccounts, getMintInfo } = useEscrow() || {};
+  const [escrows, setEscrows] = useState<EscrowAccount[]>([]);
+  const [mintAInfo, setMintAInfo] = React.useState<any>(null);
 
-  const [takeDetails, setTakeDetails] =
-    useState<(EscrowAccount | undefined)[]>();
+  const fetchEscrows = async () => {
+    if (!getAllEscrowAccounts) {
+        toast.error("Escrow function not available");
+        return;
+      }
+    const fetchedEscrows = await getAllEscrowAccounts();
+    
+    setEscrows(fetchedEscrows);
+  };
 
-  const getCurrentEscrowAccountsForDeal = async () => {
-    if (!anchorWallet) {
+  const fetchMintAInfo = async (mintA: PublicKey) => {
+    if (!getMintInfo) {
+      toast.error("Mint info function not available");
       return;
     }
-    const provider = new AnchorProvider(connection, anchorWallet);
-    const program = new Program<AnchorEscrow>(idl_object, provider);
-    // setProgram(program)
-    const data = await program.account.escrow.all();
-    let escrowAccounts: EscrowAccount[] = [];
-    for (let i = 0; i < data.length; i++) {
-      const y = getAssociatedTokenAddressSync(
-        data[i].account.mintA,
-        data[i].publicKey,
-        true,
-        TOKEN_PROGRAM_ID,
-      );
-      const account = await connection.getTokenAccountBalance(y);
-      const balance =
-        Number(account.value.amount) / 10 ** account.value.decimals;
-      const mintInfoB = await getMint(connection, data[i].account.mintB);
-      const recieveAmt = data[i].account.receive / 10 ** mintInfoB.decimals;
-      escrowAccounts.push({
-        escrow: data[i].publicKey,
-        mintA: data[i].account.mintA,
-        mintB: data[i].account.mintB,
-        seed: data[i].account.seed,
-        recieve: recieveAmt,
-        makerAmount: balance,
-        maker: data[i].account.maker,
-      });
-    }
-    setTakeDetails(escrowAccounts);
+    const mintInfo = await getMintInfo(mintA);
+    setMintAInfo(mintInfo);
   };
 
   useEffect(() => {
-    setLoading(true)
-    getCurrentEscrowAccountsForDeal();
-    const data: (EscrowAccount | undefined)[] | undefined =  takeDetails
-    if(data?.length) {
-        
-        setEscrowAccounts(data)
-        console.log(escrowAccounts)
-    } 
-    console.log(data)
-    setLoading(false)
-},[takeDetails])
+    fetchEscrows();
+  }, []);
 
-const truncate = (str: String | undefined) => str ? (str.slice(0,4)+"..."+str.slice(-4)) : null
-
-
-  return (
-    <div className=' container mx-auto p-4'>
-      <div className="overflow-x-auto">
-        <table className="min-w-full bg-white">
-          <thead>
-            <tr>
-              <th className="py-2 px-4 bg-gray-200 text-gray-600 text-left text-sm uppercase font-medium">
-                Escrow
-              </th>
-              <th className="py-2 px-4 bg-gray-200 text-gray-600 text-left text-sm uppercase font-medium">
-                Offered Token
-              </th>
-              <th className="py-2 px-4 bg-gray-200 text-gray-600 text-left text-sm uppercase font-medium">
-                Offered Amount
-              </th>
-              <th className="py-2 px-4 bg-gray-200 text-gray-600 text-left text-sm uppercase font-medium">
-                Requested Token
-              </th>
-              <th className="py-2 px-4 bg-gray-200 text-gray-600 text-left text-sm uppercase font-medium">
-                Requested Amount
-              </th>
-              <th className="py-2 px-4 bg-gray-200 text-gray-600 text-left text-sm uppercase font-medium">
-                
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-    
-             {escrowAccounts && escrowAccounts.map((escrowAccount, i) => (
-                    <tr  className="border-t" key={i}>
-                        
-                    <td className="py-2 px-4 text-gray-700"><a href={`https://explorer.solana.com/address/${escrowAccount?.escrow.toString()}?cluster=devnet`} ></a>{truncate(escrowAccount?.escrow.toString())}</td>
-                    <td className="py-2 px-4 text-gray-700"><a href={`https://explorer.solana.com/address/${escrowAccount?.mintA.toString()}?cluster=devnet`}>{truncate(escrowAccount?.mintA.toString())}</a></td>
-                    
-                    <td className="py-2 px-4 text-gray-700">{(escrowAccount?.makerAmount.toString())}</td>
-                    <td className="py-2 px-4 text-gray-700"><a href={`https://explorer.solana.com/address/${escrowAccount?.mintB.toString()}?cluster=devnet`}>{truncate(escrowAccount?.mintB.toString())} </a></td>
-                    <td className="py-2 px-4">
-                    {(escrowAccount?.recieve.toString())}
-                    </td>
-                    <td className="py-2 px-4">
-                    <button onClick={ async () => {
-    if(!ourWallet) {return alert("Wallet not connected");}
-    const provider = new AnchorProvider(connection, ourWallet)
-    const program = new Program<AnchorEscrow>(idl_object, provider)
-    if(!escrowAccount){return}
-    const makerAtaB = getAssociatedTokenAddressSync(escrowAccount?.mintB, escrowAccount?.maker,false, TOKEN_PROGRAM_ID)
-    const takerAtaA = getAssociatedTokenAddressSync(escrowAccount.mintA, ourWallet.publicKey, false, TOKEN_PROGRAM_ID)
-    const takerAtaB = getAssociatedTokenAddressSync(escrowAccount.mintB, ourWallet.publicKey, false, TOKEN_PROGRAM_ID)
-    const vault = getAssociatedTokenAddressSync(escrowAccount.mintA, escrowAccount.escrow, true, TOKEN_PROGRAM_ID)
-    console.log(takerAtaB.toString())
-    try {
-
-        const tx = await program.methods.take()
-        .accountsStrict({
-            makerAtaB,
-            takerAtaA,
-            takerAtaB,
-            vault,
-            tokenProgram: TOKEN_PROGRAM_ID,
-            taker: ourWallet.publicKey,
-            associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-            escrow: escrowAccount.escrow,
-            maker: escrowAccount.maker,
-            mintA: escrowAccount.mintA,
-            mintB: escrowAccount.mintB,
-            systemProgram: SystemProgram.programId
-        })
-        .rpc()
-        console.log(tx)
-        alert("Tx Successful. Check console for Txid")
-    } catch(e) {
-        alert("Something went wrong. Check console for error")
-        console.log(e)
+  useEffect(() => {
+    if (escrows.length > 0) {
+      fetchMintAInfo(escrows[0].account.mintA); // Pass the first escrow's mintA publicKey
     }
-}
-}> Deal</button>
-                    </td>
-                  </tr>
-              
-             ))} 
-             
-          </tbody>
-        </table>
-      </div>
+  }, [escrows]);
+
+  async function handleRefundEscrow(escrow: PublicKey) {
+    if (!publicKey) {
+      toast.error("Wallet not connected");
+      return;
+    }
+    if (!refundEscrow) {
+        toast.error("Escrow function not available");
+        return;
+      }
+    try {
+      await refundEscrow(escrow);
+      toast.success("Escrow refunded successfully");
+      await fetchEscrows();
+    } catch (error) {
+      console.error("Error refunding escrow:", error);
+      toast.error("Failed to refund escrow");
+    }
+  }
+
+  async function handleTakerEscrow(escrow: PublicKey) {
+    if (!publicKey) {
+      toast.error("Wallet not connected");
+      return;
+    }
+    if (!takerEscrow) {
+        toast.error("Escrow function not available");
+        return;
+      }
+    try {
+      await takerEscrow(escrow);
+      toast.success("Escrow taken successfully");
+      await fetchEscrows();
+    } catch (error) {
+      console.error("Error taking escrow", error);
+      toast.error("Failed to take escrow");
+    }
+  }
+ 
+
+  return escrows.length > 0 ? (
+  <div className=" grid w-full grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+    {escrows.map((value) => {
+        const mintTakerKey = `mintTaker-${value.publicKey.toBase58()}`;
+        const mintReceiverKey = `mintReceiver-${value.publicKey.toBase58()}`;
+        return (
+            <Card key={value.account.maker.toBase58()}>
+                <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                    <div className="flex items-center gap-1">
+            Escrow
+          </div>
+                    </CardTitle>
+                </CardHeader>
+                
+                <CardContent>
+                <Separator />
+                    <div className="flex flex-col space-x-4">
+                    <div>
+                  <h2 className="mb-2 flex items-center gap-2 text-xl text-muted-foreground">
+                    To Receive:
+                  </h2>{" "}
+                  <span className="px-2 text-4xl text-black dark:text-white">
+                 
+                 <DisplayTokenAmount
+                 amount={value.account.receive.toString()}
+                 decimals={mintAInfo?.decimals}
+                 />
+                  </span>
+                </div>
+
+                  <div className=" space-x-2">
+                    <div className="flex space-x-2">
+                    <h2 className="text-base text-muted-foreground">
+                      Mint Taker:{" "}
+                    </h2>
+                    <span className="text-black dark:text-white">
+                      {shortenWalletAddress(value.account.mintA.toBase58())}
+                    </span>
+                    </div>
+                    <div className="flex space-x-2">
+                    <h2 className="text-base text-muted-foreground">
+                      Mint Receiver:{" "}
+                    </h2>
+                    <span className="text-black dark:text-white">
+                      {shortenWalletAddress(value.account.mintB.toBase58())}
+                    </span>
+                    </div>
+                  </div>
+                    </div>
+                </CardContent>
+                <CardFooter>
+                    <div className=" w-full">
+                        {publicKey?.toBase58() === value.account.maker.toBase58() && (
+                            <div className=" flex justify-between space-x-3">
+                                <Button
+                            className="w-full"   
+                      variant="secondary"
+                      size="lg"
+                      onClick={() => handleRefundEscrow(value.publicKey)}
+                    >
+                      Refund
+                    </Button>
+                            </div>
+                        )}
+                        {publicKey?.toBase58() !== value.account.maker.toBase58() && (
+                  <Button
+                  className="w-full" 
+                    variant="default"
+                    onClick={() => handleTakerEscrow(value.publicKey)}
+                  >
+                    Take
+                  </Button>
+                )}
+                    </div>
+                </CardFooter>
+            </Card>
+        )
+    })}
+  </div>
+  ): (
+    <div className="text-center">
+      <h2 className="mx-auto">No Escrows to Display Yet</h2>
     </div>
-  );
+  )
 };
 
 export default FinalizeContract;
